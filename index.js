@@ -53,4 +53,12 @@ server.post('/participants', (req, res) => {
     }
 });
 
+server.get('/participants', (_,res) => {
+    db.collection("participants").find({}).toArray().then((participants) => {
+        res.status(200).send(participants);
+    }).catch((e) =>
+        res.sendStatus(500)
+    );
+});
+
 server.listen(5000, () => { console.log("Rodando em http://localhost:5000"); });
