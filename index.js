@@ -1,6 +1,6 @@
 import express from "express";
 import { MongoClient } from "mongodb";
-import { schemaParticipants } from "./src/validations.js";
+import { schemaMessages, schemaParticipants } from "./src/validations.js";
 import cors from "cors";
 import dotenv from "dotenv";
 import dayjs from "dayjs";
@@ -9,7 +9,7 @@ import "dayjs/locale/pt-br.js";
 dotenv.config();
 dayjs.locale("pt-br");
 
-const mongoClient = new MongoClient("mongodb://127.0.0.1:27017");
+const mongoClient = new MongoClient(process.env.MONGO_URI);
 let db;
 
 const server = express();
@@ -61,4 +61,32 @@ server.get('/participants', (_,res) => {
     );
 });
 
-server.listen(5000, () => { console.log("Rodando em http://localhost:5000"); });
+server.post('/messages', (req, res) => {
+    const value = schemaMessages.validate({
+        to: req.body.to,
+        text: req.body.text,
+        type: req.body.type,
+    });
+    if(value.error){
+        res.sendStatus(422);
+    }else{
+        db.collection("participants").find({}).toArray().then((participants) => {
+            const participantsList = ['Todos', ...participants.map(lst => lst.name)];
+            const findUser = participantsList.find(lst => req.headers.user === lst);
+            if(findUser){
+                const message = { ...req.body, from: req.headers.user };
+                db.collection("messages").insertOne(message).then(() =>
+                    res.sendStatus(201)
+                ).catch((e) =>
+                    res.sendStatus(500)
+                );
+            }else{
+                res.sendStatus(422);
+            }
+        }).catch((e) =>
+            res.sendStatus(500)
+        );
+    }
+});
+
+server.listen(5000);
