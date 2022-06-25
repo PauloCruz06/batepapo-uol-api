@@ -71,10 +71,10 @@ server.post('/messages', (req, res) => {
         res.sendStatus(422);
     }else{
         db.collection("participants").find({}).toArray().then((participants) => {
-            const participantsList = ['Todos', ...participants.map(lst => lst.name)];
+            const participantsList = [...participants.map(lst => lst.name)];
             const findUser = participantsList.find(lst => req.headers.user === lst);
             if(findUser){
-                const message = { ...req.body, from: req.headers.user };
+                const message = { from: req.headers.user,...req.body, time: dayjs().format('HH:mm:ss') };
                 db.collection("messages").insertOne(message).then(() =>
                     res.sendStatus(201)
                 ).catch((e) =>
@@ -87,6 +87,23 @@ server.post('/messages', (req, res) => {
             res.sendStatus(500)
         );
     }
+});
+
+server.get('/messages', (req, res) => {
+    const limit = req.query.limit;
+    const user = req.headers.user;
+    db.collection("messages").find({}).toArray().then((messages) => {
+        const messageList = messages.filter((message) =>
+            (message.from === user || message.to === user || message.to === 'Todos' || message.type === 'message')
+        );
+        if(limit){
+            res.status(200).send(messageList.slice(-limit));
+        }else{
+            res.status(200).send(messageList);
+        }
+    }).catch((e) =>
+        res.sendStatus(500)
+    );
 });
 
 server.listen(5000);
