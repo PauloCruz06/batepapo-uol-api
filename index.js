@@ -34,24 +34,24 @@ server.post('/participants', (req, res) => {
             }else{
                 const body = { ...req.body, lastStatus: Date.now() };
                 db.collection("participants").insertOne(body).then(() => {
-                    const message = {
+                    const statusMessage = {
                         from: body.name,
                         to: 'Todos',
                         text: 'entra na sala...',
                         type: 'status',
                         time: dayjs().format('HH:mm:ss')
                     };
-                    db.collection("messages").insertOne(message).then(() => 
+                    db.collection("messages").insertOne(statusMessage).then(() => 
                         res.sendStatus(201)
                     ).catch((e) =>
-                        res.sendStatus(500)
+                        res.status(500).send(e)
                     );
                 }).catch((e) =>
-                    res.sendStatus(500)
+                    res.status(500).send(e)
                 );
             }
         }).catch((e) =>
-            res.sendStatus(500)
+            res.status(500).send(e)
         );
     }
 });
@@ -84,14 +84,13 @@ server.post('/messages', (req, res) => {
             db.collection("messages").insertOne(message).then(() =>
                 res.sendStatus(201)
             ).catch((e) =>
-                res.sendStatus(500)
+                res.status(500).send(e)
             );
         }else{
-            console.log(value.error);
             res.sendStatus(422);
         }
     }).catch((e) =>
-        res.sendStatus(500)
+        res.status(500).send(e)
     );
 });
 
@@ -108,7 +107,7 @@ server.get('/messages', (req, res) => {
             res.status(200).send(messageList);
         }
     }).catch((e) =>
-        res.sendStatus(500)
+        res.status(500).send(e)
     );
 });
 
@@ -124,8 +123,26 @@ server.post('/status', (req, res) => {
             res.sendStatus(404);
         }
     }).catch((e) =>
-        res.sendStatus(500)
+        res.status(500).send(e)
     );
 });
+
+setInterval(async () => {
+    const participants = await db.collection("participants").find({}).toArray();
+    const deleteParticipants = participants.filter((user) => Date.now()-user.lastStatus > 10000);
+    if(deleteParticipants){
+        deleteParticipants.map(async (user) => {
+            await db.collection("participants").deleteOne(user);
+            const statusMessage = {
+                from: user.name,
+                to: 'Todos',
+                text: 'sai da sala...',
+                type: 'status',
+                time: dayjs().format('HH:mm:ss')
+            };
+            await db.collection("messages").insertOne(statusMessage);
+        });
+    }
+}, 15000);
 
 server.listen(5000);
