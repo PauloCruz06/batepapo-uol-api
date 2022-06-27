@@ -1,5 +1,5 @@
 import express from "express";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import { stripHtml } from "string-strip-html";
 import Joi from "joi";
 import cors from "cors";
@@ -116,6 +116,28 @@ server.get('/messages', (req, res) => {
             res.status(200).send(messageList);
         }
     }).catch((e) =>
+        res.status(500).send(e)
+    );
+});
+
+server.delete('/messages/:id', (req, res) => {
+    const { id } = req.params;
+    const user = stripHtml(req.headers.user).result.trim();
+    db.collection("messages").findOne({ _id: new ObjectId(id) }).then((async (message) => {
+        if(message){
+            if(user === message.from){
+                try{
+                    await db.collection("messages").deleteOne(message);
+                }catch (e){
+                    res.status(500).send(e);
+                }
+            }else{
+                res.sendStatus(401);
+            }
+        }else{
+            res.sendStatus(404);
+        }
+    })).catch((e) =>
         res.status(500).send(e)
     );
 });
