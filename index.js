@@ -1,5 +1,6 @@
 import express from "express";
 import { MongoClient } from "mongodb";
+import { stripHtml } from "string-strip-html";
 import Joi from "joi";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -24,18 +25,19 @@ server.post('/participants', (req, res) => {
     const schemaParticipants = Joi.object({
         username: Joi.string().required()
     });
-    const value = schemaParticipants.validate({ username: req.body.name });
+    const name = stripHtml(req.body.name).result.trim();
+    const value = schemaParticipants.validate({ username: name });
     if(value.error){
         res.sendStatus(422);
     }else{
-        db.collection("participants").findOne({ name: req.body.name }).then((doc) => {
+        db.collection("participants").findOne({ name: name }).then((doc) => {
             if(doc){
                 res.sendStatus(409);
             }else{
-                const body = { ...req.body, lastStatus: Date.now() };
+                const body = { name: name, lastStatus: Date.now() };
                 db.collection("participants").insertOne(body).then(() => {
                     const statusMessage = {
-                        from: body.name,
+                        from: name,
                         to: 'Todos',
                         text: 'entra na sala...',
                         type: 'status',
@@ -65,6 +67,13 @@ server.get('/participants', (_,res) => {
 });
 
 server.post('/messages', (req, res) => {
+    const name = stripHtml(req.headers.user).result.trim();
+    const body = {
+        to: req.body.to,
+        text: stripHtml(req.body.text).result.trim(),
+        type: req.body.type,
+        from: name 
+    };
     db.collection("participants").find({}).toArray().then((participants) => {
         const participantsList = participants.map(lst => lst.name);
         const schemaMessages = Joi.object({
@@ -74,13 +83,13 @@ server.post('/messages', (req, res) => {
             from: Joi.string().valid(...participantsList).required()
         });
         const value = schemaMessages.validate({
-            to: req.body.to,
-            text: req.body.text,
-            type: req.body.type,
-            from: req.headers.user
+            to: body.to,
+            text: body.text,
+            type: body.type,
+            from: body.from
         });
         if(!value.error){
-            const message = { from: req.headers.user,...req.body, time: dayjs().format('HH:mm:ss') };
+            const message = { from: name, ...body, time: dayjs().format('HH:mm:ss') };
             db.collection("messages").insertOne(message).then(() =>
                 res.sendStatus(201)
             ).catch((e) =>
@@ -96,7 +105,7 @@ server.post('/messages', (req, res) => {
 
 server.get('/messages', (req, res) => {
     const limit = req.query.limit;
-    const user = req.headers.user;
+    const user = stripHtml(req.headers.user).result.trim();
     db.collection("messages").find({}).toArray().then((messages) => {
         const messageList = messages.filter((message) =>
             (message.from === user || message.to === user || message.to === 'Todos' || message.type === 'message')
@@ -112,7 +121,7 @@ server.get('/messages', (req, res) => {
 });
 
 server.post('/status', (req, res) => {
-    const user = req.headers.user;
+    const user = stripHtml(req.headers.user).result.trim();
     db.collection("participants").findOne({ name: user }).then((participant) => {
         if(participant){
             db.collection("participants").updateOne({
